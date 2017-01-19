@@ -1,6 +1,9 @@
 [submodule "api"]
 	path = api
-	url = git@github.com:CinnamonHAB/cinnamongui-api.git
+	url = https://github.com/CinnamonHAB/cinnamongui-api.git
 [submodule "web"]
 	path = web
-	url = git@github.com:CinnamonHAB/cinnamongui-web.git
+	url = https://github.com/CinnamonHAB/cinnamongui-web.git
+[submodule "openhab"]
+	path = openhab
+	url = https://github.com/CinnamonHAB/cinnamonHAB.git
