@@ -1,0 +1,122 @@
+version: '2'
+
+services:
+  openhab:
+    build: ./openhab/.
+    restart: always
+    image: cinnamonhab/openhab:latest
+    volumes:
+      - './openhab/openhabconfig/userdata:/openhab/userdata'
+      - './openhab/openhabconfig/conf:/openhab/conf'
+      - './tmp/demo.items:/openhab/conf/items/demo.items'
+    command: 'server'
+
+  py:
+    build: ./openhab/.
+    restart: always
+    image: cinnamonhab/openhab:latest
+    volumes:
+      - './openhab/openhabconfig/userdata:/openhab/userdata'
+      - './openhab/openhabconfig/conf:/openhab/conf'
+      - './openhab/middleware:/middleware'
+      - './openhab/middleware/target_states.json:/openhab/target_states.json'
+      - './openhab/middleware/problem.txt:/openhab/problem.txt'
+      - './openhab/middleware/domain.txt:/openhab/domain.txt'
+      - './tmp/target_states.json:/middleware/target_states.json'
+      - './tmp/pddl_init.txt:/middleware/pddl_init.txt'
+    entrypoint: 'python3'
+    command: '/middleware/start_stream.py'
+    links:
+      - openhab
+
+  nginx:
+    image: sdelrio/docker-minimal-nginx
+    restart: always
+    volumes:
+      - './nginx.conf:/etc/nginx/nginx.conf'
+      - './htpasswd:/etc/nginx/.htpasswd'
+    ports:
+      - "80:80"
+        #- "81:81"
+    depends_on:
+      - custom_ui
+      - openhab
+      - web
+    links:
+      - openhab
+      - custom_ui
+      - web
+
+  custom_ui:
+    image: cinnamonhab/cinnamonapi:cui
+    volumes:
+      - ./openhab/customUI/:/cui
+    volumes_from:
+      - box
+    command: /bin/bash -c 'cd /cui && bundle install && bundle exec rails s -b "0.0.0.0"'
+    env_file:
+      - ./openhab/envfile
+    depends_on:
+      - py
+      - openhab
+    links:
+      - py
+      - openhab
+
+  box:
+    image: busybox
+    volumes:
+      - /box
+
+###############
+  api:
+    build: ./api/.
+    image: cinnamonhab/cinnamonapi
+    volumes:
+      - ./api/:/cinnamonapi
+      - ./tmp/demo.items:/tmp/demo.items
+      - ./tmp/pddl_init.txt:/tmp/pddl_init.txt
+      - ./tmp/target_states.json:/tmp/target_states.json
+      - /var/run/docker.sock:/var/run/docker.sock
+    volumes_from:
+      - api_box
+    command: ./scripts/start_server.sh
+    ports:
+      - 3000:3000
+    env_file:
+      - ./api/env/api.env
+      - ./api/env/db.env
+    depends_on:
+      - db
+    links:
+      - db
+
+  api_box:
+    image: busybox
+    volumes:
+      - /box
+
+  db:
+    image: mdillon/postgis:9.6
+    environment:
+      - PGDATA=/box
+    volumes_from:
+      - db-box
+    env_file:
+      - ./api/env/db.env
+
+  db-box:
+    image: busybox
+    volumes:
+      - /box
+
+#############
+
+  web:
+    build: ./web/.
+    image: cinnamonhab/cinnamonweb
+    volumes:
+      - ./web/:/app
+    ports:
+      - 81:8080
+    command: /bin/bash -c 'npm install && npm run dev'
